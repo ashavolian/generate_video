@@ -177,11 +177,11 @@ def handler(job):
     
     # 워크플로우 파일 선택 (이미지가 있으면 I2V, 없으면 T2V)
     if has_image:
-        workflow_file = "workflow/video_ltx2_i2v.json"
+        workflow_file = "workflow/LTX-2 I2V WORKFLOW_renew.json"
         workflow_type = "I2V"
         logger.info("이미지 입력이 감지되어 I2V (Image-to-Video) 워크플로우를 사용합니다.")
     else:
-        workflow_file = "workflow/video_ltx2_t2v.json"
+        workflow_file = "workflow/video_ltx2_t2v_renew.json"
         workflow_type = "T2V"
         logger.info("이미지 입력이 없어 T2V (Text-to-Video) 워크플로우를 사용합니다.")
     
@@ -194,14 +194,13 @@ def handler(job):
         raise Exception("프롬프트(prompt)는 필수 입력입니다.")
     
     # 기본 파라미터 설정 (워크플로우 기본값과 일치)
-    length = job_input.get("length", 121)  # 92:62 기본값: 121
-    steps = job_input.get("steps", 20)  # 92:9 기본값: 20
-    seed = job_input.get("seed", 10)  # 92:11 기본값: 10
-    cfg = job_input.get("cfg", 4.0)  # 92:47 기본값: 4
-    width = job_input.get("width", 1280)  # 92:89 기본값: 1280
-    height = job_input.get("height", 720)  # 92:89 기본값: 720
-    # frame_rate는 워크플로우에 따라 다름: T2V는 24, I2V는 25
-    frame_rate = job_input.get("frame_rate", 25.0 if has_image else 24.0)
+    length = job_input.get("length", 129)  # I2V: 161:203, T2V: 92:62 기본값: 129
+    steps = job_input.get("steps", 20)  # I2V: 161:106, T2V: 92:9 기본값: 20
+    seed = job_input.get("seed", 10)  # I2V: 161:119, T2V: 92:11 기본값: 10
+    cfg = job_input.get("cfg", 4.0)  # I2V: 161:140, T2V: 92:47 기본값: 4
+    width = job_input.get("width", 1280)  # I2V: 161:148, T2V: 92:89 기본값: 1280
+    height = job_input.get("height", 720)  # I2V: 161:148, T2V: 92:89 기본값: 720
+    frame_rate = job_input.get("frame_rate", 25.0)  # I2V: 161:174/161:202, T2V: 92:102/92:99 기본값: 25
     positive_prompt = job_input["prompt"]
     negative_prompt = job_input.get("negative_prompt", "blurry, low quality, still frame, frames, watermark, overlay, titles, has blurbox, has subtitles")
     
@@ -213,49 +212,59 @@ def handler(job):
     if adjusted_height != height:
         logger.info(f"Height adjusted to nearest multiple of 16: {height} -> {adjusted_height}")
     
-    # 공통 노드 설정
-    # 프롬프트 설정 (92:3 - positive, 92:4 - negative)
-    prompt["92:3"]["inputs"]["text"] = positive_prompt
-    prompt["92:4"]["inputs"]["text"] = negative_prompt
-    
-    # Length 설정 (92:62)
-    prompt["92:62"]["inputs"]["value"] = length
-    
-    # Seed 설정 (92:11)
-    prompt["92:11"]["inputs"]["noise_seed"] = seed
-    
-    # Steps 설정 (92:9 - LTXVScheduler)
-    prompt["92:9"]["inputs"]["steps"] = steps
-    
-    # CFG 설정 (92:47 - CFGGuider)
-    prompt["92:47"]["inputs"]["cfg"] = cfg
-    
     # I2V 전용 설정
     if has_image:
+        # 프롬프트 설정 (161:120 - positive, 161:115 - negative)
+        prompt["161:120"]["inputs"]["text"] = positive_prompt
+        prompt["161:115"]["inputs"]["text"] = negative_prompt
+        
         # 이미지 로드 (98)
         prompt["98"]["inputs"]["image"] = image_path
         
-        # 이미지 리사이즈 설정 (102)
-        prompt["102"]["inputs"]["resize_type.width"] = adjusted_width
-        prompt["102"]["inputs"]["resize_type.height"] = adjusted_height
+        # 이미지 리사이즈 설정 (161:148 - ImageResizeKJv2)
+        prompt["161:148"]["inputs"]["width"] = adjusted_width
+        prompt["161:148"]["inputs"]["height"] = adjusted_height
         
-        # I2V 워크플로우의 frame_rate 설정 (92:51, 92:22, 92:97)
-        # 92:99는 LTXVPreprocess 노드이므로 frame_rate 설정 안 함
-        if "92:51" in prompt:
-            prompt["92:51"]["inputs"]["frame_rate"] = int(frame_rate)
-        if "92:22" in prompt:
-            prompt["92:22"]["inputs"]["frame_rate"] = int(frame_rate)
-        if "92:97" in prompt and "fps" in prompt["92:97"]["inputs"]:
-            prompt["92:97"]["inputs"]["fps"] = int(frame_rate)
+        # Length 설정 (161:203 - PrimitiveInt, frames_number로 사용)
+        prompt["161:203"]["inputs"]["value"] = length
+        
+        # Seed 설정 (161:119 - RandomNoise)
+        prompt["161:119"]["inputs"]["noise_seed"] = seed
+        
+        # Steps 설정 (161:106 - LTXVScheduler)
+        prompt["161:106"]["inputs"]["steps"] = steps
+        
+        # CFG 설정 (161:140 - CFGGuider, 메인 CFG)
+        prompt["161:140"]["inputs"]["cfg"] = cfg
+        
+        # Frame rate 설정 (161:174 - DF_Int_to_Float, 161:202 - LTXVEmptyLatentAudio)
+        if "161:174" in prompt:
+            prompt["161:174"]["inputs"]["Value"] = int(frame_rate)
+        if "161:202" in prompt:
+            prompt["161:202"]["inputs"]["frame_rate"] = int(frame_rate)
     else:
         # T2V 전용 설정
+        # 프롬프트 설정 (92:3 - positive, 92:4 - negative)
+        prompt["92:3"]["inputs"]["text"] = positive_prompt
+        prompt["92:4"]["inputs"]["text"] = negative_prompt
+        
+        # Length 설정 (92:62)
+        prompt["92:62"]["inputs"]["value"] = length
+        
+        # Seed 설정 (92:11)
+        prompt["92:11"]["inputs"]["noise_seed"] = seed
+        
+        # Steps 설정 (92:9 - LTXVScheduler)
+        prompt["92:9"]["inputs"]["steps"] = steps
+        
+        # CFG 설정 (92:47 - CFGGuider)
+        prompt["92:47"]["inputs"]["cfg"] = cfg
+        
         # EmptyImage 설정 (92:89)
         prompt["92:89"]["inputs"]["width"] = adjusted_width
         prompt["92:89"]["inputs"]["height"] = adjusted_height
         
-        # T2V 워크플로우의 frame_rate 설정
-        # 92:102 (float)와 92:99 (int)만 설정하면 됨
-        # 92:51, 92:22, 92:97은 노드 연결로 자동 설정됨
+        # Frame rate 설정 (92:102 - PrimitiveFloat, 92:99 - PrimitiveInt)
         if "92:102" in prompt:
             prompt["92:102"]["inputs"]["value"] = frame_rate
         if "92:99" in prompt and prompt["92:99"]["class_type"] == "PrimitiveInt":
