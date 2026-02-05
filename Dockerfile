@@ -1,6 +1,6 @@
 # Use specific version of nvidia cuda image
 # FROM wlsdml1114/my-comfy-models:v1 as model_provider
-FROM wlsdml1114/engui_genai-base_blackwell:1.1 as runtime
+FROM wlsdml1114/engui_genai-base_ada:1.1 as runtime
 
 RUN pip install -U "huggingface_hub[hf_transfer]"
 RUN pip install runpod websocket-client
@@ -37,6 +37,8 @@ RUN cd /ComfyUI/custom_nodes && \
 
 #RUN wget -q https://huggingface.co/Lightricks/LTX-2/resolve/main/ltx-2-19b-dev-fp8.safetensors -O /ComfyUI/models/checkpoints/ltx-2-19b-dev-fp8.safetensors
 RUN wget -q https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors -O /ComfyUI/models/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors
+# 워크플로우(LTX-2 I2V, video_ltx2_t2v)에서 참조하는 텍스트 인코더 (파일명 일치)
+RUN wget -q https://huggingface.co/GitMylo/LTX-2-comfy_gemma_fp8_e4m3fn/resolve/main/gemma_3_12B_it_fp8_e4m3fn.safetensors -O /ComfyUI/models/text_encoders/gemma_3_12B_it_fp8_e4m3fn.safetensors
 RUN wget -q https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/text_encoders/ltx-2-19b-embeddings_connector_dev_bf16.safetensors -O /ComfyUI/models/text_encoders/ltx-2-19b-embeddings_connector_dev_bf16.safetensors
 RUN wget -q https://huggingface.co/Lightricks/LTX-2/resolve/main/ltx-2-spatial-upscaler-x2-1.0.safetensors -O /ComfyUI/models/latent_upscale_models/ltx-2-spatial-upscaler-x2-1.0.safetensors
 RUN wget -q https://huggingface.co/Lightricks/LTX-2/resolve/main/ltx-2-19b-distilled-lora-384.safetensors -O /ComfyUI/models/loras/ltx-2-19b-distilled-lora-384.safetensors
